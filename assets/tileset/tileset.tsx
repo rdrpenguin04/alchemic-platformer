@@ -3,7 +3,12 @@
  <image source="tileset.png" width="256" height="256"/>
  <tile id="1">
   <objectgroup draworder="index" id="5">
-   <object id="9" x="0" y="0" width="32" height="32"/>
+   <object id="11" x="0" y="0" width="32" height="32"/>
+  </objectgroup>
+ </tile>
+ <tile id="2">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="32" height="32"/>
   </objectgroup>
  </tile>
 </tileset>
