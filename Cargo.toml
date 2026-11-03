@@ -1,0 +1,12 @@
+[package]
+name = "alchemic-platformer"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+bevy = "0.20"
+bevy_ecs_tiled = "0.15.0"
+
+[target.wasm32-unknown-unknown.dependencies]
+getrandom = { version = "0.4", features = ["wasm_js"] }
