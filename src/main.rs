@@ -1,9 +1,11 @@
 use avian2d::prelude::*;
-use bevy::{asset::AssetMetaCheck, prelude::*};
-use bevy_ecs_tiled::prelude::*;
+use bevy::{
+    asset::AssetMetaCheck, dev_tools::fps_overlay::FpsOverlayPlugin, image::{ImageLoaderSettings, ImageSampler}, prelude::*,
+};
+use bevy_ecs_ldtk::prelude::*;
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use bevy_tnua::{
-    TnuaGhostPlatform,
+    TnuaGhostOverwrites, TnuaGhostPlatform, TnuaGhostSensor, TnuaSensorsEntities,
     builtins::{TnuaBuiltinJumpConfig, TnuaBuiltinWalkConfig},
     control_helpers::TnuaSimpleFallThroughPlatformsHelper,
     prelude::*,
@@ -26,13 +28,14 @@ fn main() -> AppExit {
                     }
                     .into(),
                     ..default()
-                }),
+                })
+                .set(ImagePlugin::default_nearest()),
         )
+        .add_plugins(FpsOverlayPlugin::default())
         .add_plugins((
-            TiledPlugin::default(),
-            TiledPhysicsPlugin::<TiledPhysicsAvianBackend>::default(),
-            PhysicsPlugins::default().with_length_unit(100.0),
-            PhysicsDebugPlugin,
+            LdtkPlugin,
+            PhysicsPlugins::default().with_length_unit(8.0),
+            // PhysicsDebugPlugin,
             TnuaControllerPlugin::<ControlScheme>::new(FixedUpdate),
             TnuaAvian2dPlugin::new(FixedUpdate),
             EguiPlugin::default(),
@@ -40,9 +43,17 @@ fn main() -> AppExit {
         ))
         .add_systems(Startup, startup)
         .add_systems(Update, simple_input.in_set(TnuaUserControlsSystems))
-        .add_systems(Update, move_camera)
+        .add_systems(Update, update_camera)
         .insert_resource(ClearColor(Color::srgb(0.1, 0.1, 0.12)))
-        .register_type::<Semisolid>()
+        .insert_resource(LevelSelection::index(0))
+        .insert_resource(LdtkSettings {
+            int_grid_rendering: IntGridRendering::Invisible,
+            level_background: LevelBackground::Nonexistent,
+            ..default()
+        })
+        .register_ldtk_int_cell::<Wall>(1)
+        .register_ldtk_int_cell::<Semisolid>(2)
+        .register_ldtk_int_cell::<Water>(3)
         .run()
 }
 
@@ -52,9 +63,38 @@ enum ControlScheme {
     Jump(TnuaBuiltinJump),
 }
 
-#[derive(Component, Reflect)]
+#[derive(PhysicsLayer, Default)]
+enum LayerNames {
+    #[default]
+    Default,
+    Player,
+    FallThrough,
+}
+
+// Note: is a fieldless struct rather than a unit struct due to a ldtk proc-macro bug
+#[derive(Component, Reflect, LdtkIntCell)]
+#[require(RigidBody::Static, Collider::rectangle(8.0, 8.0))]
 #[reflect(Component)]
-struct Semisolid;
+struct Wall {}
+
+// Note: is a fieldless struct rather than a unit struct due to a ldtk proc-macro bug
+#[derive(Component, Reflect, LdtkIntCell)]
+#[require(
+    RigidBody::Static,
+    Collider::rectangle(8.0, 8.0),
+    TnuaGhostPlatform,
+    CollisionLayers::new(
+        [LayerNames::FallThrough],
+        [LayerNames::FallThrough]
+    ),
+)]
+#[reflect(Component)]
+struct Semisolid {}
+
+// Note: is a fieldless struct rather than a unit struct due to a ldtk proc-macro bug
+#[derive(Component, Reflect, LdtkIntCell)]
+#[reflect(Component)]
+struct Water {}
 
 #[derive(Component, Default, Clone)]
 struct Player;
@@ -63,50 +103,60 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn_scene(bsn! {
         Camera2d
         Transform::from_scale(vec3(0.3, 0.3, 1.0))
+        Children [
+            Sprite {
+                image: {
+                    asset_server
+                        .load_builder()
+                        .with_settings(|s: &mut _|
+                            *s = ImageLoaderSettings {
+                                sampler: ImageSampler::linear(),
+                                ..default()
+                            }
+                        ).load("tileset/bg.png")
+                },
+            }
+            Transform::from_translation(vec3(0.0, 0.0, -3.0)).with_scale(vec3(200.0, 100.0, 1.0))
+        ]
     });
 
-    let map_handle = asset_server.load("levels/level1-new.tmx");
+    commands.spawn_scene(bsn! {
+        LdtkProjectHandle { handle: "ldtk-project.ldtk" }
+    });
 
-    commands
-        .spawn((
-            TiledMap(map_handle),
-        ))
-        .observe(
-            |collider_created: On<TiledEvent<ColliderCreated>>,
-             mut commands: Commands,
-             query: Query<Has<Semisolid>>| {
-                let mut entity = commands.entity(collider_created.event().origin);
-                entity.insert(RigidBody::Static);
-                println!("hi1");
-                if query.contains(collider_created.event().origin) {
-                    println!("hi");
-                    // entity.insert(TnuaGhostPlatform);
-                }
-            },
-        );
+    // commands.spawn(LdtkWorldBundle {
+    //     ldtk_handle: asset_server.load("ldtk-project.ldtk").into(),
+    //     ..default()
+    // });
 
     commands.spawn_scene(bsn! {
         Player
         Mesh2d(asset_value(Capsule2d {
             radius: 3.0,
-            half_length: 3.0
+            half_length: 3.5
         }))
         MeshMaterial2d<ColorMaterial>(asset_value(Color::WHITE))
         RigidBody::Dynamic
         Collider::capsule(3.0, 6.0)
+        TnuaAvian2dSensorShape(Collider::rectangle(5.9, 0.0))
         TnuaController<ControlScheme>
         TnuaConfig<ControlScheme>(asset_value(ControlSchemeConfig {
             basis: TnuaBuiltinWalkConfig {
-                speed: 128.0,
-                float_height: 3.5,
+                speed: 64.0,
+                float_height: 7.0,
+                acceleration: 192.0,
+                air_acceleration: 64.0,
                 ..default()
             },
             jump: TnuaBuiltinJumpConfig {
-                height: 128.0,
+                height: 80.0,
+                takeoff_extra_gravity: 80.0,
+                fall_extra_gravity: 64.0,
+                shorten_extra_gravity: 300.0,
                 ..default()
             }
         }))
-        TnuaAvian2dSensorShape(Collider::rectangle(6.0, 9.5))
+        TnuaGhostOverwrites<ControlScheme>
         TnuaSimpleFallThroughPlatformsHelper
         LockedAxes::ROTATION_LOCKED
         Transform::from_translation(vec3(0.0, 200.0, 3.0))
@@ -117,9 +167,17 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 fn simple_input(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut query: Query<&mut TnuaController<ControlScheme>>,
+    mut query: Query<(
+        &mut TnuaController<ControlScheme>,
+        &TnuaSensorsEntities<ControlScheme>,
+        &mut TnuaGhostOverwrites<ControlScheme>,
+        &mut TnuaSimpleFallThroughPlatformsHelper,
+    )>,
+    ghost_sensors_query: Query<&TnuaGhostSensor>,
 ) {
-    let Ok(mut controller) = query.single_mut() else {
+    let Ok((mut controller, sensors_entities, mut ghost_overwrites, mut fall_through_helper)) =
+        query.single_mut()
+    else {
         return;
     };
     controller.initiate_action_feeding();
@@ -141,11 +199,24 @@ fn simple_input(
     if keyboard.pressed(KeyCode::Space) {
         controller.action(ControlScheme::Jump(default()));
     }
+
+    // one-way platforms
+    if let Some(ghost_sensor) = sensors_entities
+        .ground
+        .and_then(|entity| ghost_sensors_query.get(entity).ok())
+    {
+        let mut handler = fall_through_helper.with(&mut ghost_overwrites.ground, ghost_sensor, 4.0);
+        handler.dont_fall();
+    }
 }
 
 const CAMERA_DECAY_RATE: f32 = 2.0;
 
-fn move_camera(player: Single<&Transform, With<Player>>, mut camera: Single<&mut Transform, (With<Camera2d>, Without<Player>)>, time: Res<Time>) {
+fn update_camera(
+    player: Single<&Transform, With<Player>>,
+    mut camera: Single<(&mut Transform), (With<Camera2d>, Without<Player>)>,
+    time: Res<Time>,
+) {
     let Vec3 { x, y, .. } = player.translation;
     let direction = Vec3::new(x, y, camera.translation.z);
 
