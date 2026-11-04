@@ -7,9 +7,10 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 avian2d = "0.8"
 bevy = "0.20"
-bevy_ecs_tiled = { version = "0.15", features = ["avian"] }
+bevy_ecs_tiled = { git = "https://github.com/rdrpenguin04/bevy_ecs_tiled", version = "0.15", features = ["avian", "user_properties"] }
 bevy-tnua = "0.33"
 bevy-tnua-avian2d = "0.13"
+bevy-inspector-egui = "0.38"
 
 [target.wasm32-unknown-unknown.dependencies]
 getrandom = { version = "0.4", features = ["wasm_js"] }
