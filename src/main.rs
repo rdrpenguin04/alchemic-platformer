@@ -145,6 +145,10 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
         MeshMaterial2d<ColorMaterial>(asset_value(Color::WHITE))
         RigidBody::Dynamic
         Collider::capsule(3.0, 4.0)
+        CollisionLayers::new(
+            [LayerNames::Default, LayerNames::Player],
+            [LayerNames::Default, LayerNames::Player],
+        )
         TnuaAvian2dSensorShape(Collider::rectangle(5.9, 0.0))
         TnuaController<ControlScheme>
         TnuaConfig<ControlScheme>(asset_value(ControlSchemeConfig {
@@ -226,7 +230,7 @@ const CAMERA_DECAY_RATE: f32 = 2.0;
 
 fn update_camera(
     player: Single<&Transform, With<Player>>,
-    mut camera: Single<(&mut Transform), (With<Camera2d>, Without<Player>)>,
+    mut camera: Single<&mut Transform, (With<Camera2d>, Without<Player>)>,
     time: Res<Time>,
 ) {
     let Vec3 { x, y, .. } = player.translation;
