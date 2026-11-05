@@ -109,7 +109,7 @@ struct Player;
 fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn_scene(bsn! {
         Camera2d
-        Transform::from_scale(vec3(0.3, 0.3, 1.0))
+        Transform::from_scale(vec3(0.25, 0.25, 1.0))
         Children [
             Sprite {
                 image: {
