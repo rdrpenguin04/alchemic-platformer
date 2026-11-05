@@ -1,7 +1,6 @@
-
 use std::{collections::HashSet, num::NonZero};
 
-use serde::{Deserializer};
+use serde::Deserializer;
 use serde_derive::Deserialize;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -13,26 +12,33 @@ pub struct RecipeStack {
 impl<'de> serde::de::Deserialize<'de> for RecipeStack {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>
+        D: serde::Deserializer<'de>,
     {
-
         fn validate_id<E: serde::de::Error>(s: &str) -> Result<(), E> {
             let mut chars = s.chars();
 
             let Some(first) = chars.next() else {
-                return Err(E::invalid_value(serde::de::Unexpected::Str(s), &"Empty identifier is not allowed"));
+                return Err(E::invalid_value(
+                    serde::de::Unexpected::Str(s),
+                    &"Empty identifier is not allowed",
+                ));
             };
 
             if !first.is_xid_start() && first != '_' {
-                return Err(E::invalid_value(serde::de::Unexpected::Str(s), &"Id must be a legal identifier"));
-            }
-            
-            for c in chars {
-                if !c.is_xid_continue() && c != '_' {
-                    return Err(E::invalid_value(serde::de::Unexpected::Str(s), &"Id must be a legal identifier"));
-                }
+                return Err(E::invalid_value(
+                    serde::de::Unexpected::Str(s),
+                    &"Id must be a legal identifier",
+                ));
             }
 
+            for c in chars {
+                if !c.is_xid_continue() && c != '_' {
+                    return Err(E::invalid_value(
+                        serde::de::Unexpected::Str(s),
+                        &"Id must be a legal identifier",
+                    ));
+                }
+            }
 
             Ok(())
         }
@@ -49,7 +55,6 @@ impl<'de> serde::de::Deserialize<'de> for RecipeStack {
             where
                 E: serde::de::Error,
             {
-
                 validate_id(&v)?;
                 Ok(RecipeStack { id: v, quantity: 1 })
             }
@@ -59,7 +64,10 @@ impl<'de> serde::de::Deserialize<'de> for RecipeStack {
                 E: serde::de::Error,
             {
                 validate_id(v)?;
-                Ok(RecipeStack { id: v.to_string(), quantity: 1 })
+                Ok(RecipeStack {
+                    id: v.to_string(),
+                    quantity: 1,
+                })
             }
 
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
@@ -73,14 +81,16 @@ impl<'de> serde::de::Deserialize<'de> for RecipeStack {
                     match k {
                         "id" => {
                             if id.is_some() {
-                                return Err(<A::Error as serde::de::Error>::duplicate_field("id"))
+                                return Err(<A::Error as serde::de::Error>::duplicate_field("id"));
                             }
 
                             id = Some(map.next_value()?);
                         }
                         "quantity" => {
                             if quantity.is_some() {
-                                return Err(<A::Error as serde::de::Error>::duplicate_field("qyantity"))
+                                return Err(<A::Error as serde::de::Error>::duplicate_field(
+                                    "qyantity",
+                                ));
                             }
 
                             quantity = Some(map.next_value()?);
@@ -94,19 +104,21 @@ impl<'de> serde::de::Deserialize<'de> for RecipeStack {
 
                 validate_id(&id)?;
 
-                Ok(RecipeStack {id, quantity})
+                Ok(RecipeStack { id, quantity })
             }
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
             where
                 A: serde::de::SeqAccess<'de>,
             {
-                let id = seq.next_element::<String>()?.ok_or_else(|| <A::Error as serde::de::Error>::missing_field("id"))?;
+                let id = seq
+                    .next_element::<String>()?
+                    .ok_or_else(|| <A::Error as serde::de::Error>::missing_field("id"))?;
                 let quantity = seq.next_element::<u32>()?.unwrap_or(1);
 
                 validate_id(&id)?;
 
-                Ok(RecipeStack{id, quantity})
+                Ok(RecipeStack { id, quantity })
             }
         }
 
@@ -125,18 +137,18 @@ impl Recipe {
     /// If `inputs` allows this recipe to be crafted, returns the maximum number of outputs of the recipe that can be made, else returns [`None`].
     pub fn can_craft(&self, inputs: &[RecipeStack]) -> Option<NonZero<u32>> {
         if self.inputs.len() != inputs.len() {
-            return None
+            return None;
         }
 
         let mut max_multiplicity = u32::MAX;
 
         for (req, input) in self.inputs.iter().zip(inputs) {
             if req.id != input.id {
-                return None
+                return None;
             }
 
             if req.quantity > input.quantity {
-                return None
+                return None;
             }
 
             let multiplicity = input.quantity / req.quantity;
@@ -155,5 +167,4 @@ fn sort_inputs<'de, D: Deserializer<'de>>(de: D) -> Result<Vec<RecipeStack>, D::
     val.sort_by(|a, b| Ord::cmp(&a.id, &b.id));
 
     Ok(val)
-
 }
