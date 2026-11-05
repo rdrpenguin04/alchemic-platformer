@@ -137,7 +137,7 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
         }))
         MeshMaterial2d<ColorMaterial>(asset_value(Color::WHITE))
         RigidBody::Dynamic
-        Collider::capsule(3.0, 6.0)
+        Collider::capsule(3.0, 4.0)
         TnuaAvian2dSensorShape(Collider::rectangle(5.9, 0.0))
         TnuaController<ControlScheme>
         TnuaConfig<ControlScheme>(asset_value(ControlSchemeConfig {
@@ -206,7 +206,12 @@ fn simple_input(
         .and_then(|entity| ghost_sensors_query.get(entity).ok())
     {
         let mut handler = fall_through_helper.with(&mut ghost_overwrites.ground, ghost_sensor, 4.0);
-        handler.dont_fall();
+        
+        if keyboard.pressed(KeyCode::ArrowDown) {
+            handler.try_falling(keyboard.just_pressed(KeyCode::ArrowDown));
+        } else {
+            handler.dont_fall();
+        }
     }
 }
 
