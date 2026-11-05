@@ -132,6 +132,9 @@ dependencies = [
  "bevy-tnua-avian2d",
  "bevy_ecs_ldtk",
  "getrandom 0.4.3",
+ "serde",
+ "serde_derive",
+ "serde_json",
 ]
 
 [[package]]

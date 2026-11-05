@@ -1,2 +1,4 @@
 *.tiled-session
 tiled_types_export.json
+target/
+.cargo/

@@ -1,3 +1,5 @@
+#![feature(char_is_xid)]
+
 use avian2d::prelude::*;
 use bevy::{
     asset::AssetMetaCheck,
@@ -14,6 +16,8 @@ use bevy_tnua::{
     prelude::*,
 };
 use bevy_tnua_avian2d::prelude::*;
+
+mod alchemy;
 
 fn main() -> AppExit {
     App::new()

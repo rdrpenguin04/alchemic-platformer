@@ -11,6 +11,19 @@ bevy_ecs_ldtk = "0.16"
 bevy-inspector-egui = "0.38"
 bevy-tnua = "0.33"
 bevy-tnua-avian2d = "0.13"
+serde = "1.0.229"
+serde_derive = "1.0.229"
+serde_json = "1.0.154"
 
 [target.wasm32-unknown-unknown.dependencies]
 getrandom = { version = "0.4", features = ["wasm_js"] }
+
+
+[profile.dev.package.'*']
+opt-level = 3
+debug = "full"
+overflow-checks = true
+
+[profile.dev.build-override]
+opt-level = 3
+debug = "limited"
