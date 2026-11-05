@@ -1,6 +1,9 @@
 use avian2d::prelude::*;
 use bevy::{
-    asset::AssetMetaCheck, dev_tools::fps_overlay::FpsOverlayPlugin, image::{ImageLoaderSettings, ImageSampler}, prelude::*,
+    asset::AssetMetaCheck,
+    dev_tools::fps_overlay::FpsOverlayPlugin,
+    image::{ImageLoaderSettings, ImageSampler},
+    prelude::*,
 };
 use bevy_ecs_ldtk::prelude::*;
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
@@ -206,7 +209,7 @@ fn simple_input(
         .and_then(|entity| ghost_sensors_query.get(entity).ok())
     {
         let mut handler = fall_through_helper.with(&mut ghost_overwrites.ground, ghost_sensor, 4.0);
-        
+
         if keyboard.pressed(KeyCode::ArrowDown) {
             handler.try_falling(keyboard.just_pressed(KeyCode::ArrowDown));
         } else {
