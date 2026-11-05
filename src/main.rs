@@ -4,8 +4,9 @@ use avian2d::prelude::*;
 use bevy::{
     asset::AssetMetaCheck,
     dev_tools::fps_overlay::FpsOverlayPlugin,
-    image::{ImageLoaderSettings, ImageSampler},
+    image::{ImageLoaderSettings, ImageSampler, TextureAtlasTemplate},
     prelude::*,
+    scene::{SceneFunction, SceneScope},
 };
 use bevy_ecs_ldtk::prelude::*;
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
@@ -38,26 +39,26 @@ fn main() -> AppExit {
                 })
                 .set(ImagePlugin::default_nearest()),
         )
-        .add_plugins(FpsOverlayPlugin::default())
+        // .add_plugins(FpsOverlayPlugin::default())
         .add_plugins((
             LdtkPlugin,
             PhysicsPlugins::default().with_length_unit(8.0),
             // PhysicsDebugPlugin,
             TnuaControllerPlugin::<ControlScheme>::new(FixedUpdate),
             TnuaAvian2dPlugin::new(FixedUpdate),
-            EguiPlugin::default(),
-            WorldInspectorPlugin::default(),
+            // EguiPlugin::default(),
+            // WorldInspectorPlugin::default(),
         ))
         .add_systems(Startup, startup)
         .add_systems(Update, simple_input.in_set(TnuaUserControlsSystems))
         .add_systems(Update, update_camera)
-        .insert_resource(ClearColor(Color::srgb(0.1, 0.1, 0.12)))
         .insert_resource(LevelSelection::index(0))
         .insert_resource(LdtkSettings {
             int_grid_rendering: IntGridRendering::Invisible,
             level_background: LevelBackground::Nonexistent,
             ..default()
         })
+        .init_resource::<GameAssets>()
         .register_ldtk_int_cell::<Wall>(1)
         .register_ldtk_int_cell::<Semisolid>(2)
         .register_ldtk_int_cell::<Water>(3)
@@ -106,7 +107,39 @@ struct Water {}
 #[derive(Component, Default, Clone)]
 struct Player;
 
-fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
+#[derive(Component, Default, Clone)]
+struct ElementText(String);
+
+#[derive(Resource)]
+struct GameAssets {
+    icons_image: Handle<Image>,
+    icons_atlas_layout: Handle<TextureAtlasLayout>,
+}
+
+impl FromWorld for GameAssets {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.resource::<AssetServer>();
+
+        let icons_image = asset_server.load("tileset/AlchemyIcons.png");
+
+        let mut texture_atlas_layouts = world.resource_mut::<Assets<TextureAtlasLayout>>();
+
+        let icons_atlas_layout = texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
+            UVec2::splat(8),
+            4,
+            5,
+            None,
+            None,
+        ));
+
+        Self {
+            icons_image,
+            icons_atlas_layout,
+        }
+    }
+}
+
+fn startup(mut commands: Commands, asset_server: Res<AssetServer>, game_assets: Res<GameAssets>) {
     commands.spawn_scene(bsn! {
         Camera2d
         Transform::from_scale(vec3(0.25, 0.25, 1.0))
@@ -169,10 +202,60 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
         }))
         TnuaGhostOverwrites<ControlScheme>
         TnuaSimpleFallThroughPlatformsHelper
-        LockedAxes::ROTATION_LOCKED
-        Transform::from_translation(vec3(0.0, 200.0, 3.0))
+        // LockedAxes::ROTATION_LOCKED
+        Transform::from_translation(vec3(32.0, 200.0, 3.0))
         GravityScale(10.0)
         TransformInterpolation
+    });
+
+    let elements = [
+        (4, "Fire", "fire"),
+        (8, "Air", "air"),
+        (12, "Water", "water"),
+        (16, "Earth", "earth"),
+    ];
+    let element_nodes: Vec<Box<dyn SceneList>> = elements
+        .iter()
+        .map(|&(index, text, name)| {
+            Box::from(bsn_list! {
+                ElementText(name)
+                Text("00")
+                --
+                ImageNode {
+                    image: { game_assets.icons_image.clone() },
+                    texture_atlas: { Some(TextureAtlasTemplate {
+                        layout: { game_assets.icons_atlas_layout.clone().into() },
+                        index,
+                    }.into()) }
+                }
+                Node {
+                    width: px(32),
+                    height: px(32),
+                }
+                --
+                Text(text)
+            })
+        })
+        .collect();
+
+    commands.spawn_scene(bsn! {
+        Node {
+            position_type: PositionType::Absolute,
+            left: px(8),
+            top: px(8),
+            display: Display::Grid,
+            grid_template_columns: vec![
+                GridTrack::min_content(),
+                GridTrack::min_content(),
+                GridTrack::min_content(),
+            ],
+            column_gap: px(8),
+            row_gap: px(5),
+            align_items: AlignItems::Center,
+        }
+        Children [
+            {element_nodes}
+        ]
     });
 }
 
@@ -195,10 +278,10 @@ fn simple_input(
 
     let mut direction = Vec3::ZERO;
 
-    if keyboard.pressed(KeyCode::ArrowLeft) {
+    if keyboard.pressed(KeyCode::ArrowLeft) || keyboard.pressed(KeyCode::KeyA) {
         direction -= Vec3::X;
     }
-    if keyboard.pressed(KeyCode::ArrowRight) {
+    if keyboard.pressed(KeyCode::ArrowRight) || keyboard.pressed(KeyCode::KeyD) {
         direction += Vec3::X;
     }
 
@@ -207,7 +290,10 @@ fn simple_input(
         ..default()
     };
 
-    if keyboard.pressed(KeyCode::Space) {
+    if keyboard.pressed(KeyCode::ArrowDown)
+        || keyboard.pressed(KeyCode::KeyW)
+        || keyboard.pressed(KeyCode::Space)
+    {
         controller.action(ControlScheme::Jump(default()));
     }
 
@@ -218,8 +304,10 @@ fn simple_input(
     {
         let mut handler = fall_through_helper.with(&mut ghost_overwrites.ground, ghost_sensor, 4.0);
 
-        if keyboard.pressed(KeyCode::ArrowDown) {
-            handler.try_falling(keyboard.just_pressed(KeyCode::ArrowDown));
+        if keyboard.pressed(KeyCode::ArrowDown) || keyboard.pressed(KeyCode::KeyS) {
+            handler.try_falling(
+                keyboard.just_pressed(KeyCode::ArrowDown) || keyboard.just_pressed(KeyCode::KeyS),
+            );
         } else {
             handler.dont_fall();
         }
