@@ -57,6 +57,7 @@ fn main() -> AppExit {
         .add_systems(Startup, startup)
         .add_systems(Update, simple_input.in_set(TnuaUserControlsSystems))
         .add_systems(Update, (update_camera, update_element_text))
+        .add_systems(Update, passive_element_accumulation)
         .init_asset_loader::<JsonLoader<Recipe>>()
         .insert_resource(LevelSelection::index(0))
         .insert_resource(LdtkSettings {
@@ -113,6 +114,7 @@ struct Water {}
 #[derive(Component, Clone)]
 struct Player {
     inventory: HashMap<String, u8>,
+    element_max: u8,
 }
 
 impl Default for Player {
@@ -125,6 +127,7 @@ impl Default for Player {
                 ("earth".into(), 0),
             ]
             .into(),
+            element_max: 10,
         }
     }
 }
@@ -359,5 +362,14 @@ fn update_element_text(element_texts: Query<(&ElementText, &mut Text)>, player: 
             text.0.clear();
             write!(text.0, "{el:02}").unwrap();
         }
+    }
+}
+
+fn passive_element_accumulation(mut player: Single<&mut Player>, mut timer: Local<Option<Timer>>, time: Res<Time>) {
+    let timer = timer.get_or_insert_with(|| Timer::from_seconds(1.0, TimerMode::Repeating));
+    timer.tick(time.delta());
+    if timer.just_finished() {
+        let air = player.inventory.get_mut("air").unwrap();
+        *air = (*air + 1).clamp(0, 10);
     }
 }
