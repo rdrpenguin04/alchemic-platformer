@@ -56,8 +56,8 @@ fn main() -> AppExit {
         ))
         .add_systems(Startup, startup)
         .add_systems(Update, simple_input.in_set(TnuaUserControlsSystems))
+        .add_systems(Update, (passive_element_accumulation, earth_mining))
         .add_systems(Update, (update_camera, update_element_text))
-        .add_systems(Update, passive_element_accumulation)
         .init_asset_loader::<JsonLoader<Recipe>>()
         .insert_resource(LevelSelection::index(0))
         .insert_resource(LdtkSettings {
@@ -108,6 +108,7 @@ struct Semisolid {}
 
 // Note: is a fieldless struct rather than a unit struct due to a ldtk proc-macro bug
 #[derive(Component, Reflect, LdtkIntCell)]
+#[require(Sensor, Collider::rectangle(8.0, 8.0))]
 #[reflect(Component)]
 struct Water {}
 
@@ -231,6 +232,7 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, game_assets: 
         Transform::from_translation(vec3(32.0, 200.0, 3.0))
         GravityScale(10.0)
         TransformInterpolation
+        CollidingEntities
     });
 
     let elements = [
@@ -365,11 +367,56 @@ fn update_element_text(element_texts: Query<(&ElementText, &mut Text)>, player: 
     }
 }
 
-fn passive_element_accumulation(mut player: Single<&mut Player>, mut timer: Local<Option<Timer>>, time: Res<Time>) {
+fn passive_element_accumulation(
+    mut player: Single<(&mut Player, &CollidingEntities)>,
+    mut timer: Local<Option<Timer>>,
+    time: Res<Time>,
+    water_tiles: Query<Entity, With<Water>>,
+) {
+    let (player, collisions) = &mut *player;
     let timer = timer.get_or_insert_with(|| Timer::from_seconds(1.0, TimerMode::Repeating));
     timer.tick(time.delta());
+
+    let max = player.element_max;
+
     if timer.just_finished() {
         let air = player.inventory.get_mut("air").unwrap();
-        *air = (*air + 1).clamp(0, 10);
+        *air = (*air + 1).clamp(0, max);
+
+        let water = player.inventory.get_mut("water").unwrap();
+        let mut water_add = 0;
+        for entity in collisions.iter() {
+            if water_tiles.contains(*entity) {
+                water_add = 1;
+            }
+        }
+        *water = (*water + water_add).clamp(0, max);
+    }
+}
+
+fn earth_mining(
+    mut player: Single<(&mut Player, &TnuaController<ControlScheme>)>,
+    earth_tiles: Query<Entity, With<Wall>>, // TODO: detect "earth", not "solid collision". Probably needs a better int grid enumeration.
+    mut timer: Local<Option<Timer>>,
+    time: Res<Time>,
+    click: Res<ButtonInput<MouseButton>>,
+) {
+    let (player, controller) = &mut *player;
+    let timer = timer.get_or_insert_with(|| Timer::from_seconds(0.4, TimerMode::Repeating));
+
+    timer.tick(time.delta());
+    println!("{:?}", controller.basis_memory);
+
+    if let Some(e) = controller.basis_memory.standing_on_entity()
+        && earth_tiles.contains(e)
+        && click.pressed(MouseButton::Left)
+    {
+        if timer.just_finished() {
+            let max = player.element_max;
+            let earth = player.inventory.get_mut("earth").unwrap();
+            *earth = (*earth + 1).clamp(0, max);
+        }
+    } else {
+        timer.reset();
     }
 }
