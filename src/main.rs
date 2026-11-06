@@ -66,9 +66,10 @@ fn main() -> AppExit {
             ..default()
         })
         .init_resource::<GameAssets>()
-        .register_ldtk_int_cell::<Wall>(1)
-        .register_ldtk_int_cell::<Semisolid>(2)
+        .register_ldtk_int_cell::<EarthWall>(1)
+        .register_ldtk_int_cell::<EarthFloor>(2)
         .register_ldtk_int_cell::<Water>(3)
+        .register_ldtk_int_cell::<NonEarthWall>(4)
         .run()
 }
 
@@ -86,14 +87,38 @@ enum LayerNames {
     FallThrough,
 }
 
-// Note: is a fieldless struct rather than a unit struct due to a ldtk proc-macro bug
+// Int cells
+// Note: There are fieldless structs rather than unit structs due to a ldtk proc-macro bug
+
 #[derive(Component, Reflect, LdtkIntCell)]
-#[require(RigidBody::Static, Collider::rectangle(8.0, 8.0))]
-#[reflect(Component)]
-struct Wall {}
+#[require(Earth, Wall)]
+struct EarthWall {}
+
+#[derive(Component, Reflect, LdtkIntCell)]
+#[require(Earth, Semisolid)]
+struct EarthFloor {}
 
 // Note: is a fieldless struct rather than a unit struct due to a ldtk proc-macro bug
 #[derive(Component, Reflect, LdtkIntCell)]
+#[require(Sensor, Collider::rectangle(8.0, 8.0))]
+#[reflect(Component)]
+struct Water {}
+
+#[derive(Component, Reflect, LdtkIntCell)]
+#[require(Wall)]
+struct NonEarthWall {}
+
+#[derive(Component, Default, Reflect)]
+#[reflect(Component)]
+struct Earth;
+
+#[derive(Component, Default, Reflect)]
+#[require(RigidBody::Static, Collider::rectangle(8.0, 8.0))]
+#[reflect(Component)]
+struct Wall;
+
+// Note: is a fieldless struct rather than a unit struct due to a ldtk proc-macro bug
+#[derive(Component, Default, Reflect)]
 #[require(
     RigidBody::Static,
     Collider::rectangle(8.0, 8.0),
@@ -104,13 +129,7 @@ struct Wall {}
     ),
 )]
 #[reflect(Component)]
-struct Semisolid {}
-
-// Note: is a fieldless struct rather than a unit struct due to a ldtk proc-macro bug
-#[derive(Component, Reflect, LdtkIntCell)]
-#[require(Sensor, Collider::rectangle(8.0, 8.0))]
-#[reflect(Component)]
-struct Water {}
+struct Semisolid;
 
 #[derive(Component, Clone)]
 struct Player {
@@ -396,7 +415,7 @@ fn passive_element_accumulation(
 
 fn earth_mining(
     mut player: Single<(&mut Player, &TnuaController<ControlScheme>)>,
-    earth_tiles: Query<Entity, With<Wall>>, // TODO: detect "earth", not "solid collision". Probably needs a better int grid enumeration.
+    earth_tiles: Query<Entity, With<Earth>>, // TODO: detect "earth", not "solid collision". Probably needs a better int grid enumeration.
     mut timer: Local<Option<Timer>>,
     time: Res<Time>,
     click: Res<ButtonInput<MouseButton>>,
