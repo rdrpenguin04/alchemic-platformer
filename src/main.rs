@@ -1,12 +1,14 @@
 #![feature(char_is_xid)]
 
+use std::fmt::Write as _;
+
 use avian2d::prelude::*;
 use bevy::{
     asset::AssetMetaCheck,
     dev_tools::fps_overlay::FpsOverlayPlugin,
     image::{ImageLoaderSettings, ImageSampler, TextureAtlasTemplate},
+    platform::collections::HashMap,
     prelude::*,
-    scene::{SceneFunction, SceneScope},
 };
 use bevy_ecs_ldtk::prelude::*;
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
@@ -17,6 +19,8 @@ use bevy_tnua::{
     prelude::*,
 };
 use bevy_tnua_avian2d::prelude::*;
+
+use crate::{alchemy::Recipe, helpers::JsonLoader};
 
 mod alchemy;
 mod helpers;
@@ -52,7 +56,8 @@ fn main() -> AppExit {
         ))
         .add_systems(Startup, startup)
         .add_systems(Update, simple_input.in_set(TnuaUserControlsSystems))
-        .add_systems(Update, update_camera)
+        .add_systems(Update, (update_camera, update_element_text))
+        .init_asset_loader::<JsonLoader<Recipe>>()
         .insert_resource(LevelSelection::index(0))
         .insert_resource(LdtkSettings {
             int_grid_rendering: IntGridRendering::Invisible,
@@ -105,10 +110,26 @@ struct Semisolid {}
 #[reflect(Component)]
 struct Water {}
 
-#[derive(Component, Default, Clone)]
-struct Player;
+#[derive(Component, Clone)]
+struct Player {
+    inventory: HashMap<String, u8>,
+}
 
-#[derive(Component, Default, Clone)]
+impl Default for Player {
+    fn default() -> Self {
+        Self {
+            inventory: [
+                ("fire".into(), 0),
+                ("air".into(), 0),
+                ("water".into(), 0),
+                ("earth".into(), 0),
+            ]
+            .into(),
+        }
+    }
+}
+
+#[derive(Component, Default, Clone, Deref)]
 struct ElementText(String);
 
 #[derive(Resource)]
@@ -330,4 +351,13 @@ fn update_camera(
     camera
         .translation
         .smooth_nudge(&direction, CAMERA_DECAY_RATE, time.delta_secs());
+}
+
+fn update_element_text(element_texts: Query<(&ElementText, &mut Text)>, player: Single<&Player>) {
+    for (name, mut text) in element_texts {
+        if let Some(el) = player.inventory.get(&name.0) {
+            text.0.clear();
+            write!(text.0, "{el:02}").unwrap();
+        }
+    }
 }

@@ -127,7 +127,7 @@ impl<'de> serde::de::Deserialize<'de> for RecipeStack {
     }
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug, Asset, Reflect)]
 pub struct Recipe {
     pub output: RecipeStack,
     #[serde(deserialize_with = "sort_inputs")]
