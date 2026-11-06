@@ -312,7 +312,7 @@ fn simple_input(
         ..default()
     };
 
-    if keyboard.pressed(KeyCode::ArrowDown)
+    if keyboard.pressed(KeyCode::ArrowUp)
         || keyboard.pressed(KeyCode::KeyW)
         || keyboard.pressed(KeyCode::Space)
     {
