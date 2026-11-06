@@ -415,7 +415,7 @@ fn passive_element_accumulation(
 
 fn earth_mining(
     mut player: Single<(&mut Player, &TnuaController<ControlScheme>)>,
-    earth_tiles: Query<Entity, With<Earth>>, // TODO: detect "earth", not "solid collision". Probably needs a better int grid enumeration.
+    earth_tiles: Query<Entity, With<Earth>>,
     mut timer: Local<Option<Timer>>,
     time: Res<Time>,
     click: Res<ButtonInput<MouseButton>>,
