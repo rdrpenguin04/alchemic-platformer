@@ -417,11 +417,12 @@ fn earth_mining(
     mut player: Single<(&mut Player, &TnuaController<ControlScheme>)>,
     earth_tiles: Query<Entity, With<Earth>>,
     mut timer: Local<Option<Timer>>,
+    mut counter: Local<u8>,
     time: Res<Time>,
     click: Res<ButtonInput<MouseButton>>,
 ) {
     let (player, controller) = &mut *player;
-    let timer = timer.get_or_insert_with(|| Timer::from_seconds(0.4, TimerMode::Repeating));
+    let timer = timer.get_or_insert_with(|| Timer::from_seconds(0.2, TimerMode::Repeating));
 
     timer.tick(time.delta());
     println!("{:?}", controller.basis_memory);
@@ -431,11 +432,17 @@ fn earth_mining(
         && click.pressed(MouseButton::Left)
     {
         if timer.just_finished() {
-            let max = player.element_max;
-            let earth = player.inventory.get_mut("earth").unwrap();
-            *earth = (*earth + 1).clamp(0, max);
+            *counter += 1;
+            // TODO: particle effect, sound effect
+            if *counter == 3 {
+                *counter = 0;
+                let max = player.element_max;
+                let earth = player.inventory.get_mut("earth").unwrap();
+                *earth = (*earth + 1).clamp(0, max);
+            }
         }
     } else {
         timer.reset();
+        *counter = 0;
     }
 }
