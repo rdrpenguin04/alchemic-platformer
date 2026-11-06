@@ -1,9 +1,10 @@
 use std::{collections::HashSet, num::NonZero};
 
+use bevy::{asset::Asset, reflect::Reflect};
 use serde::Deserializer;
 use serde_derive::Deserialize;
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Reflect, Asset)]
 pub struct RecipeStack {
     pub id: String,
     pub quantity: u32,

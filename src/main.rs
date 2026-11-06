@@ -19,6 +19,7 @@ use bevy_tnua::{
 use bevy_tnua_avian2d::prelude::*;
 
 mod alchemy;
+mod helpers;
 
 fn main() -> AppExit {
     App::new()
