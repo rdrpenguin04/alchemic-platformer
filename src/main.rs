@@ -14,7 +14,7 @@ use bevy_ecs_ldtk::prelude::*;
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use bevy_tnua::{
     TnuaGhostOverwrites, TnuaGhostPlatform, TnuaGhostSensor, TnuaSensorsEntities,
-    builtins::{TnuaBuiltinJumpConfig, TnuaBuiltinWalkConfig},
+    builtins::{TnuaBuiltinJumpConfig, TnuaBuiltinWalkConfig, TnuaBuiltinWalkMemory},
     control_helpers::TnuaSimpleFallThroughPlatformsHelper,
     prelude::*,
 };
@@ -56,7 +56,7 @@ fn main() -> AppExit {
         ))
         .add_systems(Startup, startup)
         .add_systems(Update, simple_input.in_set(TnuaUserControlsSystems))
-        .add_systems(Update, check_in_water)
+        .add_systems(PreUpdate, check_in_water)
         .add_systems(
             Update,
             (
@@ -69,6 +69,7 @@ fn main() -> AppExit {
             (
                 update_camera,
                 update_element_text,
+                update_player_eye,
                 update_player_physics.after(check_in_water),
             ),
         )
@@ -235,6 +236,7 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, game_assets: 
     // });
 
     commands.spawn_scene(bsn! {
+        #Player
         Player
         Mesh2d(asset_value(Capsule2d {
             radius: 3.0,
@@ -272,6 +274,12 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, game_assets: 
         GravityScale(12.0)
         TransformInterpolation
         CollidingEntities
+        Children [
+            #Eye
+            Mesh2d(asset_value(Circle { radius: 0.5 }))
+            MeshMaterial2d<ColorMaterial>(asset_value(Color::BLACK))
+            Transform::from_translation(vec3(2.0, 2.0, 1.0))
+        ]
     });
 
     let elements = [
@@ -513,4 +521,33 @@ fn check_in_water(
     } else {
         player.remove::<InWater>();
     }
+}
+
+// Exists to give a sense of "forward"
+fn update_player_eye(
+    player: Single<(&TnuaController<ControlScheme>, &LinearVelocity, &Children), With<Player>>,
+    mut transform: Query<&mut Transform>,
+    mut prev_target_x: Local<f32>,
+    time: Res<Time>,
+) {
+    let (controller, vel, children) = *player;
+    let mut eye_transform = transform.get_mut(children[0]).unwrap();
+
+    let want_x = controller.basis.desired_motion.x;
+    let want_x = if want_x == 0.0 {
+        prev_target_x.signum()
+    } else {
+        want_x.signum()
+    };
+    *prev_target_x = want_x;
+
+    let target = vec2(
+        want_x * 2.0 + (vel.x / 30.0).atan() * 0.2,
+        2.0 + (vel.y / 10.0).atan() * 1.0,
+    );
+    let mut cur = eye_transform.translation.xy();
+    cur.smooth_nudge(&target, 24.0, time.delta_secs());
+
+    eye_transform.translation.x = cur.x;
+    eye_transform.translation.y = cur.y;
 }
