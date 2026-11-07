@@ -135,6 +135,7 @@ struct Semisolid;
 struct Player {
     inventory: HashMap<String, u8>,
     element_max: u8,
+    health: u8,
 }
 
 impl Default for Player {
@@ -148,6 +149,7 @@ impl Default for Player {
             ]
             .into(),
             element_max: 10,
+            health: 10,
         }
     }
 }
@@ -187,7 +189,7 @@ impl FromWorld for GameAssets {
 fn startup(mut commands: Commands, asset_server: Res<AssetServer>, game_assets: Res<GameAssets>) {
     commands.spawn_scene(bsn! {
         Camera2d
-        Transform::from_scale(vec3(0.25, 0.25, 1.0))
+        Transform::from_translation(vec3(160.0, 200.0, 0.0)).with_scale(vec3(0.25, 0.25, 1.0))
         Children [
             Sprite {
                 image: {
@@ -227,7 +229,7 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, game_assets: 
             [LayerNames::Default, LayerNames::Player],
             [LayerNames::Default, LayerNames::Player],
         )
-        TnuaAvian2dSensorShape(Collider::rectangle(5.9, 0.0))
+        TnuaAvian2dSensorShape(Collider::rectangle(5.98, 0.0))
         TnuaController<ControlScheme>
         TnuaConfig<ControlScheme>(asset_value(ControlSchemeConfig {
             basis: TnuaBuiltinWalkConfig {
@@ -248,7 +250,7 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, game_assets: 
         TnuaGhostOverwrites<ControlScheme>
         TnuaSimpleFallThroughPlatformsHelper
         // LockedAxes::ROTATION_LOCKED
-        Transform::from_translation(vec3(32.0, 200.0, 3.0))
+        Transform::from_translation(vec3(160.0, 200.0, 3.0))
         GravityScale(10.0)
         TransformInterpolation
         CollidingEntities
