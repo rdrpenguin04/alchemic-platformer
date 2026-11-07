@@ -57,20 +57,14 @@ fn main() -> AppExit {
         .add_systems(Startup, startup)
         .add_systems(Update, simple_input.in_set(TnuaUserControlsSystems))
         .add_systems(PreUpdate, check_in_water)
-        .add_systems(
-            Update,
-            (
-                passive_element_accumulation.after(check_in_water),
-                earth_mining,
-            ),
-        )
+        .add_systems(Update, (passive_element_accumulation, earth_mining))
         .add_systems(
             Update,
             (
                 update_camera,
                 update_element_text,
                 update_player_eye,
-                update_player_physics.after(check_in_water),
+                update_player_physics,
             ),
         )
         .init_asset_loader::<JsonLoader<Recipe>>()
@@ -424,7 +418,7 @@ fn update_element_text(element_texts: Query<(&ElementText, &mut Text)>, player: 
 }
 
 fn passive_element_accumulation(
-    mut player: Single<(&mut Player, Has<Water>)>,
+    mut player: Single<(&mut Player, Has<InWater>)>,
     mut timer: Local<Option<Timer>>,
     time: Res<Time>,
 ) {
