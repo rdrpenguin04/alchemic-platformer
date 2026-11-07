@@ -1,20 +1,16 @@
 #![feature(char_is_xid)]
 
-use std::fmt::Write as _;
-
 use avian2d::prelude::*;
 use bevy::{
     asset::AssetMetaCheck,
-    dev_tools::fps_overlay::FpsOverlayPlugin,
-    image::{ImageLoaderSettings, ImageSampler, TextureAtlasTemplate},
+    image::{ImageLoaderSettings, ImageSampler},
     platform::collections::HashMap,
     prelude::*,
 };
 use bevy_ecs_ldtk::prelude::*;
-use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use bevy_tnua::{
     TnuaGhostOverwrites, TnuaGhostPlatform, TnuaGhostSensor, TnuaSensorsEntities,
-    builtins::{TnuaBuiltinJumpConfig, TnuaBuiltinWalkConfig, TnuaBuiltinWalkMemory},
+    builtins::{TnuaBuiltinJumpConfig, TnuaBuiltinWalkConfig},
     control_helpers::TnuaSimpleFallThroughPlatformsHelper,
     prelude::*,
 };
@@ -23,6 +19,7 @@ use bevy_tnua_avian2d::prelude::*;
 use crate::{alchemy::Recipe, helpers::JsonLoader};
 
 mod alchemy;
+mod game_hud;
 mod helpers;
 
 fn main() -> AppExit {
@@ -54,6 +51,7 @@ fn main() -> AppExit {
             // EguiPlugin::default(),
             // WorldInspectorPlugin::default(),
         ))
+        .add_plugins(game_hud::plugin)
         .add_systems(Startup, startup)
         .add_systems(Update, simple_input.in_set(TnuaUserControlsSystems))
         .add_systems(PreUpdate, check_in_water)
@@ -62,7 +60,6 @@ fn main() -> AppExit {
             Update,
             (
                 update_camera,
-                update_element_text,
                 update_player_eye,
                 update_player_physics,
             ),
@@ -74,7 +71,6 @@ fn main() -> AppExit {
             level_background: LevelBackground::Nonexistent,
             ..default()
         })
-        .init_resource::<GameAssets>()
         .register_ldtk_int_cell::<EarthWall>(1)
         .register_ldtk_int_cell::<EarthFloor>(2)
         .register_ldtk_int_cell::<Water>(3)
@@ -145,10 +141,10 @@ struct InWater;
 struct Semisolid;
 
 #[derive(Component, Clone)]
-struct Player {
-    inventory: HashMap<String, u8>,
-    element_max: u8,
-    health: u8,
+pub struct Player {
+    pub inventory: HashMap<String, u8>,
+    pub element_max: u8,
+    pub health: u8,
 }
 
 impl Default for Player {
@@ -167,39 +163,7 @@ impl Default for Player {
     }
 }
 
-#[derive(Component, Default, Clone, Deref)]
-struct ElementText(String);
-
-#[derive(Resource)]
-struct GameAssets {
-    icons_image: Handle<Image>,
-    icons_atlas_layout: Handle<TextureAtlasLayout>,
-}
-
-impl FromWorld for GameAssets {
-    fn from_world(world: &mut World) -> Self {
-        let asset_server = world.resource::<AssetServer>();
-
-        let icons_image = asset_server.load("tileset/AlchemyIcons.png");
-
-        let mut texture_atlas_layouts = world.resource_mut::<Assets<TextureAtlasLayout>>();
-
-        let icons_atlas_layout = texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
-            UVec2::splat(8),
-            4,
-            5,
-            None,
-            None,
-        ));
-
-        Self {
-            icons_image,
-            icons_atlas_layout,
-        }
-    }
-}
-
-fn startup(mut commands: Commands, asset_server: Res<AssetServer>, game_assets: Res<GameAssets>) {
+fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn_scene(bsn! {
         Camera2d
         Transform::from_translation(vec3(160.0, 200.0, 0.0)).with_scale(vec3(0.25, 0.25, 1.0))
@@ -273,56 +237,6 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, game_assets: 
             Mesh2d(asset_value(Circle { radius: 0.5 }))
             MeshMaterial2d<ColorMaterial>(asset_value(Color::BLACK))
             Transform::from_translation(vec3(2.0, 2.0, 1.0))
-        ]
-    });
-
-    let elements = [
-        (4, "Fire", "fire"),
-        (8, "Air", "air"),
-        (12, "Water", "water"),
-        (16, "Earth", "earth"),
-    ];
-    let element_nodes: Vec<Box<dyn SceneList>> = elements
-        .iter()
-        .map(|&(index, text, name)| {
-            Box::from(bsn_list! {
-                ElementText(name)
-                Text("00")
-                --
-                ImageNode {
-                    image: { game_assets.icons_image.clone() },
-                    texture_atlas: { Some(TextureAtlasTemplate {
-                        layout: { game_assets.icons_atlas_layout.clone().into() },
-                        index,
-                    }.into()) }
-                }
-                Node {
-                    width: px(32),
-                    height: px(32),
-                }
-                --
-                Text(text)
-            })
-        })
-        .collect();
-
-    commands.spawn_scene(bsn! {
-        Node {
-            position_type: PositionType::Absolute,
-            left: px(8),
-            top: px(8),
-            display: Display::Grid,
-            grid_template_columns: vec![
-                GridTrack::min_content(),
-                GridTrack::min_content(),
-                GridTrack::min_content(),
-            ],
-            column_gap: px(8),
-            row_gap: px(5),
-            align_items: AlignItems::Center,
-        }
-        Children [
-            {element_nodes}
         ]
     });
 }
@@ -406,15 +320,6 @@ fn update_camera(
     camera
         .translation
         .smooth_nudge(&direction, CAMERA_DECAY_RATE, time.delta_secs());
-}
-
-fn update_element_text(element_texts: Query<(&ElementText, &mut Text)>, player: Single<&Player>) {
-    for (name, mut text) in element_texts {
-        if let Some(el) = player.inventory.get(&name.0) {
-            text.0.clear();
-            write!(text.0, "{el:02}").unwrap();
-        }
-    }
 }
 
 fn passive_element_accumulation(
