@@ -56,8 +56,22 @@ fn main() -> AppExit {
         ))
         .add_systems(Startup, startup)
         .add_systems(Update, simple_input.in_set(TnuaUserControlsSystems))
-        .add_systems(Update, (passive_element_accumulation, earth_mining))
-        .add_systems(Update, (update_camera, update_element_text))
+        .add_systems(Update, check_in_water)
+        .add_systems(
+            Update,
+            (
+                passive_element_accumulation.after(check_in_water),
+                earth_mining,
+            ),
+        )
+        .add_systems(
+            Update,
+            (
+                update_camera,
+                update_element_text,
+                update_player_physics.after(check_in_water),
+            ),
+        )
         .init_asset_loader::<JsonLoader<Recipe>>()
         .insert_resource(LevelSelection::index(0))
         .insert_resource(LdtkSettings {
@@ -116,6 +130,10 @@ struct Earth;
 #[require(RigidBody::Static, Collider::rectangle(8.0, 8.0))]
 #[reflect(Component)]
 struct Wall;
+
+#[derive(Component, Default, Reflect)]
+#[component(storage = "SparseSet")]
+struct InWater;
 
 // Note: is a fieldless struct rather than a unit struct due to a ldtk proc-macro bug
 #[derive(Component, Default, Reflect)]
@@ -251,7 +269,7 @@ fn startup(mut commands: Commands, asset_server: Res<AssetServer>, game_assets: 
         TnuaSimpleFallThroughPlatformsHelper
         // LockedAxes::ROTATION_LOCKED
         Transform::from_translation(vec3(160.0, 200.0, 3.0))
-        GravityScale(10.0)
+        GravityScale(12.0)
         TransformInterpolation
         CollidingEntities
     });
@@ -314,11 +332,17 @@ fn simple_input(
         &TnuaSensorsEntities<ControlScheme>,
         &mut TnuaGhostOverwrites<ControlScheme>,
         &mut TnuaSimpleFallThroughPlatformsHelper,
+        Has<InWater>,
     )>,
     ghost_sensors_query: Query<&TnuaGhostSensor>,
 ) {
-    let Ok((mut controller, sensors_entities, mut ghost_overwrites, mut fall_through_helper)) =
-        query.single_mut()
+    let Ok((
+        mut controller,
+        sensors_entities,
+        mut ghost_overwrites,
+        mut fall_through_helper,
+        in_water,
+    )) = query.single_mut()
     else {
         return;
     };
@@ -342,7 +366,10 @@ fn simple_input(
         || keyboard.pressed(KeyCode::KeyW)
         || keyboard.pressed(KeyCode::Space)
     {
-        controller.action(ControlScheme::Jump(default()));
+        controller.action(ControlScheme::Jump(TnuaBuiltinJump {
+            allow_in_air: in_water,
+            ..default()
+        }));
     }
 
     // one-way platforms
@@ -389,12 +416,11 @@ fn update_element_text(element_texts: Query<(&ElementText, &mut Text)>, player: 
 }
 
 fn passive_element_accumulation(
-    mut player: Single<(&mut Player, &CollidingEntities)>,
+    mut player: Single<(&mut Player, Has<Water>)>,
     mut timer: Local<Option<Timer>>,
     time: Res<Time>,
-    water_tiles: Query<Entity, With<Water>>,
 ) {
-    let (player, collisions) = &mut *player;
+    let (player, in_water) = &mut *player;
     let timer = timer.get_or_insert_with(|| Timer::from_seconds(1.0, TimerMode::Repeating));
     timer.tick(time.delta());
 
@@ -405,13 +431,9 @@ fn passive_element_accumulation(
         *air = (*air + 1).clamp(0, max);
 
         let water = player.inventory.get_mut("water").unwrap();
-        let mut water_add = 0;
-        for entity in collisions.iter() {
-            if water_tiles.contains(*entity) {
-                water_add = 1;
-            }
+        if *in_water {
+            *water = (*water + 1).clamp(0, max);
         }
-        *water = (*water + water_add).clamp(0, max);
     }
 }
 
@@ -446,5 +468,49 @@ fn earth_mining(
     } else {
         timer.reset();
         *counter = 0;
+    }
+}
+
+fn update_player_physics(
+    mut player: Single<(&mut GravityScale, &TnuaConfig<ControlScheme>, Has<InWater>), With<Player>>,
+    mut was_in_water: Local<bool>,
+    mut config_assets: ResMut<Assets<ControlSchemeConfig>>,
+) {
+    let (gravity_scale, controller_config, in_water) = &mut *player;
+    let mut controller_config = config_assets.get_mut(&controller_config.0).unwrap();
+    if *in_water && !*was_in_water {
+        gravity_scale.0 = 1.0;
+        controller_config.basis.acceleration = 20.0;
+        controller_config.basis.air_acceleration = 32.0;
+        controller_config.jump.height = 20.0;
+        controller_config.jump.shorten_extra_gravity = 0.0;
+    } else if !*in_water && *was_in_water {
+        gravity_scale.0 = 12.0;
+        controller_config.basis.acceleration = 192.0;
+        controller_config.basis.air_acceleration = 64.0;
+        controller_config.jump.height = 80.0;
+        controller_config.jump.shorten_extra_gravity = 300.0;
+    }
+    *was_in_water = *in_water;
+}
+
+fn check_in_water(
+    mut commands: Commands,
+    player: Single<(Entity, &CollidingEntities)>,
+    water_tiles: Query<Entity, With<Water>>,
+) {
+    let (player, collisions) = *player;
+    let mut in_water = false;
+    for entity in collisions.iter() {
+        if water_tiles.contains(*entity) {
+            in_water = true;
+        }
+    }
+
+    let mut player = commands.entity(player);
+    if in_water {
+        player.insert(InWater);
+    } else {
+        player.remove::<InWater>();
     }
 }
