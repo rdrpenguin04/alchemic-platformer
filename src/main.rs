@@ -457,7 +457,6 @@ fn earth_mining(
     let timer = timer.get_or_insert_with(|| Timer::from_seconds(0.2, TimerMode::Repeating));
 
     timer.tick(time.delta());
-    println!("{:?}", controller.basis_memory);
 
     if let Some(e) = controller.basis_memory.standing_on_entity()
         && earth_tiles.contains(e)
