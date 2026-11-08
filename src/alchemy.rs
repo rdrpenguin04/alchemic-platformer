@@ -1,8 +1,22 @@
-use std::{collections::HashSet, num::NonZero};
+use std::num::NonZero;
 
-use bevy::{asset::Asset, reflect::Reflect};
+use bevy::{platform::collections::HashMap, prelude::*};
 use serde::Deserializer;
 use serde_derive::Deserialize;
+
+use crate::helpers::JsonLoader;
+
+pub fn plugin(app: &mut App) {
+    app.init_asset_loader::<JsonLoader<Recipe>>()
+        .insert_resource(Elements {
+            by_id: HashMap::from([
+                ("fire".into(), Element::new("fire", "Fire", 4)),
+                ("air".into(), Element::new("air", "Air", 8)),
+                ("water".into(), Element::new("water", "Water", 12)),
+                ("earth".into(), Element::new("earth", "Earth", 16)),
+            ]),
+        });
+}
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Reflect, Asset)]
 pub struct RecipeStack {
@@ -168,4 +182,26 @@ fn sort_inputs<'de, D: Deserializer<'de>>(de: D) -> Result<Vec<RecipeStack>, D::
     val.sort_by(|a, b| Ord::cmp(&a.id, &b.id));
 
     Ok(val)
+}
+
+#[derive(Clone, Reflect)]
+pub struct Element {
+    pub id: String,
+    pub name: String,
+    pub icon_id: usize,
+}
+
+impl Element {
+    pub fn new(id: impl Into<String>, name: impl Into<String>, icon_id: usize) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            icon_id,
+        }
+    }
+}
+
+#[derive(Resource, Clone, Reflect)]
+pub struct Elements {
+    pub by_id: HashMap<String, Element>,
 }

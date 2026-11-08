@@ -2,7 +2,10 @@ use std::fmt::Write as _;
 
 use bevy::{image::TextureAtlasTemplate, prelude::*};
 
-use crate::Player;
+use crate::{
+    Player,
+    alchemy::{Element, Elements},
+};
 
 pub fn plugin(app: &mut App) {
     app.add_systems(Startup, spawn_hud)
@@ -42,33 +45,56 @@ impl FromWorld for HudAssets {
     }
 }
 
-fn spawn_hud(mut commands: Commands, hud_assets: Res<HudAssets>) {
-    let elements = [
-        (4, "Fire", "fire"),
-        (8, "Air", "air"),
-        (12, "Water", "water"),
-        (16, "Earth", "earth"),
-    ];
-    let element_nodes: Vec<Box<dyn SceneList>> = elements
-        .iter()
-        .map(|&(index, text, name)| {
+fn spawn_hud(mut commands: Commands, hud_assets: Res<HudAssets>, elements: Res<Elements>) {
+    let base_elements = ["fire", "air", "water", "earth"];
+    let element_nodes: Vec<Box<dyn SceneList>> = base_elements
+        .iter().flat_map(|x| elements.by_id.get(*x))
+        .map(|Element { id, name, icon_id }| {
+            let id = id.clone();
+            let name = name.clone();
+            let icon_id = *icon_id;
             Box::from(bsn_list! {
-                ElementText(name)
+                ElementText({ id.clone() })
                 Text("00")
                 --
                 ImageNode {
                     image: { hud_assets.icons_image.clone() },
                     texture_atlas: { Some(TextureAtlasTemplate {
                         layout: { hud_assets.icons_atlas_layout.clone().into() },
-                        index,
+                        index: icon_id,
                     }.into()) }
                 }
                 Node {
                     width: px(32),
                     height: px(32),
                 }
+                Pickable {
+                    is_hoverable: true
+                }
+                on({
+                    move |mut event: On<PointerDragStart>, mut commands: Commands, player: Single<&Player>, hud_assets: Res<HudAssets>, elements: Res<Elements>| {
+                        event.propagate(false);
+                        let Some(pos) = event.hit.position else {
+                            return;
+                        };
+                        println!("{pos:?}");
+                        if player.inventory.get(&id).is_some_and(|x| *x > 0) {
+                            let element = elements.by_id.get(&id).unwrap();
+                            commands.spawn_scene(bsn! {
+                                Sprite {
+                                    image: { hud_assets.icons_image.clone() },
+                                    texture_atlas: { Some(TextureAtlasTemplate {
+                                        layout: { hud_assets.icons_atlas_layout.clone().into() },
+                                        index: icon_id,
+                                    }.into()) }
+                                }
+                                Transform::from_translation(pos + vec3(0.0, 0.0, 10.0))
+                            });
+                        }
+                    }
+                })
                 --
-                Text(text)
+                Text({ name.clone() })
             })
         })
         .collect();

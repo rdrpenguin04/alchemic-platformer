@@ -16,8 +16,6 @@ use bevy_tnua::{
 };
 use bevy_tnua_avian2d::prelude::*;
 
-use crate::{alchemy::Recipe, helpers::JsonLoader};
-
 mod alchemy;
 mod game_hud;
 mod helpers;
@@ -51,7 +49,7 @@ fn main() -> AppExit {
             // EguiPlugin::default(),
             // WorldInspectorPlugin::default(),
         ))
-        .add_plugins(game_hud::plugin)
+        .add_plugins((alchemy::plugin, game_hud::plugin))
         .add_systems(Startup, startup)
         .add_systems(Update, simple_input.in_set(TnuaUserControlsSystems))
         .add_systems(PreUpdate, check_in_water)
@@ -64,7 +62,6 @@ fn main() -> AppExit {
                 update_player_physics,
             ),
         )
-        .init_asset_loader::<JsonLoader<Recipe>>()
         .insert_resource(LevelSelection::index(0))
         .insert_resource(LdtkSettings {
             int_grid_rendering: IntGridRendering::Invisible,
